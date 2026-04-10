@@ -1,4 +1,4 @@
-module homelab-cli
+module opus
 
 go 1.26.1
 

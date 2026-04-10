@@ -12,7 +12,7 @@ var appName string
 
 func newRootCmd() *cobra.Command {
 	var rootCmd = &cobra.Command{
-		Use:   "homelab",
+		Use:   "opus",
 		Short: "Simple homelab deployment tool",
 	}
 
