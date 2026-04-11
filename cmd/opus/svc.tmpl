@@ -1,0 +1,16 @@
+[Unit]
+Description={{.name}}
+After=network.target
+
+[Service]
+ExecStart={{.dir}}
+WorkingDirectory={{.dir}}
+Restart=always
+RestartSec=5
+
+# Limits
+MemoryMax={{.ram}}
+CPUQuota={{.cpu}}
+
+[Install]
+WantedBy=multi-user.target
