@@ -13,9 +13,15 @@ import (
 )
 
 var (
-	serviceName   string
-	remoteHost    string
-	remoteBaseDir = "/opt/services"
+	serviceName string
+	remoteHost  string
+)
+
+const (
+	LocalTempBaseDir     = "/tmp"
+	RemoteTempBaseDir    = "/tmp"
+	RemoteBinBaseDir     = "/opt/services"
+	RemoteSystemdBaseDir = "/etc/systemd/system"
 )
 
 //go:embed svc.tmpl
@@ -44,55 +50,64 @@ func newRootCmd() *cobra.Command {
 }
 
 func runDeploy(cmd *cobra.Command, args []string) {
+	binPath := filepath.Join("./", "bin", serviceName)
+	tempDir := filepath.Join(LocalTempBaseDir, serviceName)
+	err := os.MkdirAll(tempDir, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	fmt.Println("Starting deploy for:", serviceName)
+	remoteBinPath := deployBinary(binPath, serviceName)
+	deployService(tempDir, serviceName, remoteBinPath)
 
-	// build Go binary
-	localDir := filepath.Join("/tmp", serviceName)
-	binPath := filepath.Join(localDir, serviceName)
-	pkgDir := "./" + filepath.Join("cmd", serviceName)
-	mustRun("go", "test", "./...")
-	mustRun("env", "GOOS=linux", "GOARCH=amd64", "go", "build", "-o", binPath, pkgDir)
+	err = os.RemoveAll(tempDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
-	// deploy to remote server
-	remoteTempDir := localDir
-	remoteDir := filepath.Join(remoteBaseDir, serviceName)
+func deployBinary(binPath string, svcName string) string {
+	remoteTempBinPath := filepath.Join(RemoteTempBaseDir, svcName)
+	remoteFinalBinPath := filepath.Join(RemoteBinBaseDir, svcName)
 
-	generateServiceFile(localDir, serviceName, remoteDir)
-	mustRun("scp", "-r", localDir, remoteHost+":"+remoteTempDir)
-
+	mustRun("scp", "-r", binPath, remoteHost+":"+remoteTempBinPath)
 	sshCmd := fmt.Sprintf(
-		"sudo bash -c 'mkdir -p %[1]s && rm -rf %[1]s/* && mv %[2]s/* %[1]s && chmod +x %[1]s && rm -rf %[2]s'",
-		remoteDir,
-		remoteTempDir,
+		"sudo bash -c 'mkdir -p %[1]s && mv %[2]s %[3]s && chmod +x %[3]s'",
+		RemoteBinBaseDir,
+		remoteTempBinPath,
+		remoteFinalBinPath,
 	)
 	mustRun("ssh", "-t", remoteHost, sshCmd)
 
-	err := os.RemoveAll(localDir)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return remoteFinalBinPath
 }
 
-func mustRun(name string, args ...string) {
-	fmt.Printf("Running: %s %v\n", name, args)
-	cmd := exec.Command(name, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+func deployService(tempDir string, svcName string, remoteBinPath string) {
+	svcPath := generateServiceFile(tempDir, svcName, remoteBinPath)
+	remoteTempSvcPath := filepath.Join(RemoteTempBaseDir, svcName+".service")
+	remoteFinalSvcPath := filepath.Join(RemoteSystemdBaseDir, svcName+".service")
 
-	if err := cmd.Run(); err != nil {
-		fmt.Println("Error:", err)
-		os.Exit(1)
-	}
+	mustRun("scp", svcPath, remoteHost+":"+remoteTempSvcPath)
+
+	sshCmd := fmt.Sprintf(
+		"sudo bash -c '"+
+			"mv -f %[2]s %[3]s && "+
+			"chmod +x %[3]s && "+
+			"systemctl daemon-reload && "+
+			"systemctl enable %[4]s && "+
+			"systemctl restart %[4]s'",
+		RemoteSystemdBaseDir,
+		remoteTempSvcPath,
+		remoteFinalSvcPath,
+		svcName,
+	)
+	mustRun("ssh", "-t", remoteHost, sshCmd)
 }
 
-func generateServiceFile(localDir string, svcName string, remoteDir string) {
-	err := os.MkdirAll(localDir, 0755)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	file, err := os.Create(filepath.Join(localDir, svcName+".service"))
+func generateServiceFile(tempDir string, svcName string, remoteBinPath string) string {
+	svcFilePath := filepath.Join(tempDir, svcName+".service")
+	file, err := os.Create(svcFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -107,13 +122,29 @@ func generateServiceFile(localDir string, svcName string, remoteDir string) {
 		file,
 		map[string]string{
 			"name": svcName,
-			"dir":  remoteDir,
+			"dir":  RemoteBinBaseDir,
+			"bin":  remoteBinPath,
 			"ram":  "50M",
 			"cpu":  "10%",
 		},
 	)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	return svcFilePath
+}
+
+func mustRun(name string, args ...string) {
+	fmt.Printf("Running: %s %v\n", name, args)
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	if err := cmd.Run(); err != nil {
+		fmt.Println("Error:", err)
+		os.Exit(1)
 	}
 }
 
