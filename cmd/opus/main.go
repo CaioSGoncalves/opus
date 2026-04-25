@@ -19,7 +19,7 @@ const (
 var SvcTemplateRaw string
 
 var (
-	RemoteHost string
+	TargetName string
 )
 
 func main() {

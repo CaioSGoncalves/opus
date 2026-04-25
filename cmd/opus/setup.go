@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	TargetName string
+	RemoteHost string
 
 	SSHConfigPath    = filepath.Join(os.Getenv("HOME"), ".ssh", "config")
 	DeployScriptPath = "/usr/local/bin/opus-deploy"

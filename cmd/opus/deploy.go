@@ -15,77 +15,69 @@ var (
 )
 
 func initDeployCmd() *cobra.Command {
-	deployCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "Build and deploy a Go service",
 		Run:   runDeploy,
 	}
-	deployCmd.Flags().StringVar(&ServiceName, "name", "", "service name")
-	deployCmd.Flags().StringVar(&RemoteHost, "host", "", "ssh config name or user@host")
-	deployCmd.MarkFlagRequired("name")
-	deployCmd.MarkFlagRequired("host")
 
-	return deployCmd
+	cmd.Flags().StringVar(&ServiceName, "name", "", "service name")
+	cmd.Flags().StringVar(&TargetName, "target", "", "setup target (e.g. homelab)")
+
+	cmd.MarkFlagRequired("name")
+	cmd.MarkFlagRequired("target")
+
+	return cmd
 }
 
 func runDeploy(cmd *cobra.Command, args []string) {
-	binPath := filepath.Join("./", "bin", ServiceName)
+	target := TargetName + "_opus"
+
+	fmt.Println("Deploy:", ServiceName, "→", target)
+
+	// ---------------- VALIDATE BUILD ----------------
+
+	binPath := filepath.Join("bin", ServiceName)
+	if _, err := os.Stat(binPath); err != nil {
+		log.Fatalf("binary not found: %s (run `make build-linux` first)", binPath)
+	}
+
+	// ---------------- PREP TEMP ----------------
+
 	tempDir := filepath.Join(LocalTempBaseDir, ServiceName)
 	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Starting deploy for:", ServiceName)
-	remoteBinPath := deployBinary(binPath, ServiceName)
-	deployService(tempDir, ServiceName, remoteBinPath)
+	tmpBin := filepath.Join(tempDir, ServiceName)
 
-	err = os.RemoveAll(tempDir)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
+	// copy binary into temp
+	mustRun("cp", binPath, tmpBin)
 
-func deployBinary(binPath string, svcName string) string {
-	remoteTempBinPath := filepath.Join(RemoteTempBaseDir, svcName)
-	remoteFinalBinPath := filepath.Join(RemoteBinBaseDir, svcName)
+	// generate service file
+	remoteBinPath := filepath.Join(RemoteBinBaseDir, ServiceName)
+	svcPath := generateServiceFile(tempDir, ServiceName, remoteBinPath)
 
-	mustRun("scp", "-r", binPath, RemoteHost+":"+remoteTempBinPath)
-	sshCmd := fmt.Sprintf(
-		"sudo bash -c 'mkdir -p %[1]s && mv %[2]s %[3]s && chmod +x %[3]s'",
-		RemoteBinBaseDir,
-		remoteTempBinPath,
-		remoteFinalBinPath,
+	// ---------------- UPLOAD ----------------
+
+	mustRun("scp", tmpBin, target+":"+filepath.Join(RemoteTempBaseDir, ServiceName))
+	mustRun("scp", svcPath, target+":"+filepath.Join(RemoteTempBaseDir, ServiceName+".service"))
+
+	// ---------------- EXECUTE ----------------
+
+	mustRun("ssh", "-t", target,
+		fmt.Sprintf("sudo %s %s", DeployScriptPath, ServiceName),
 	)
-	mustRun("ssh", "-t", RemoteHost, sshCmd)
 
-	return remoteFinalBinPath
-}
+	// ---------------- CLEAN ----------------
 
-func deployService(tempDir string, svcName string, remoteBinPath string) {
-	svcPath := generateServiceFile(tempDir, svcName, remoteBinPath)
-	remoteTempSvcPath := filepath.Join(RemoteTempBaseDir, svcName+".service")
-	remoteFinalSvcPath := filepath.Join(RemoteSystemdBaseDir, svcName+".service")
-
-	mustRun("scp", svcPath, RemoteHost+":"+remoteTempSvcPath)
-
-	sshCmd := fmt.Sprintf(
-		"sudo bash -c '"+
-			"mv -f %[2]s %[3]s && "+
-			"chmod +x %[3]s && "+
-			"systemctl daemon-reload && "+
-			"systemctl enable %[4]s && "+
-			"systemctl restart %[4]s'",
-		RemoteSystemdBaseDir,
-		remoteTempSvcPath,
-		remoteFinalSvcPath,
-		svcName,
-	)
-	mustRun("ssh", "-t", RemoteHost, sshCmd)
+	os.RemoveAll(tempDir)
 }
 
 func generateServiceFile(tempDir string, svcName string, remoteBinPath string) string {
 	svcFilePath := filepath.Join(tempDir, svcName+".service")
+
 	file, err := os.Create(svcFilePath)
 	if err != nil {
 		log.Fatal(err)
