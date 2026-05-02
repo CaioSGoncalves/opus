@@ -1,6 +1,6 @@
 # Opus 🛠️
 
-**Build, deploy, and manage Go services with a single tool — simple, fast, and extensible.**
+**Fast, simple deploys for your homelab — binaries with systemd or containers with k3s.**
 
 Opus is designed for homelabs and small servers, focusing on direct deployments (systemd or k3s) without unnecessary complexity. It provides a clean developer experience while remaining flexible for future expansion.
 
