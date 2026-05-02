@@ -15,7 +15,7 @@ opus setup init --target homelab --host user@192.168.1.10
 ```
 ### 2. Deploy a service (systemd)
 ```bash
-opus deploy --name domus --host homelab_opus
+opus deploy --name domus --host homelab
 ```
 ### 3. Setup k3s + kubectl
 ```bash
