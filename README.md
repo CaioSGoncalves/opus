@@ -25,7 +25,12 @@ opus setup k3s --target homelab
 ```bash
 opus use homelab
 kubectl get nodes
-``
+```
+### 5. SSH into server
+```bash
+ssh homelab_opus
+```
+
 
 ## Features
 - Simple Deploy: Ship Go binaries via SSH using systemd
