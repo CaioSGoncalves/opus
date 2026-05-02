@@ -20,7 +20,12 @@ var SvcTemplateRaw string
 
 var (
 	TargetName string
+	RemoteHost string
 )
+
+func getOpusConfigName(targetName string) string {
+	return targetName + "_opus"
+}
 
 func main() {
 	var rootCmd = &cobra.Command{
@@ -29,6 +34,7 @@ func main() {
 	}
 	rootCmd.AddCommand(initSetupCmd())
 	rootCmd.AddCommand(initDeployCmd())
+	rootCmd.AddCommand(initUseCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

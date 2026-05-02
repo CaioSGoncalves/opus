@@ -31,7 +31,7 @@ func initDeployCmd() *cobra.Command {
 }
 
 func runDeploy(cmd *cobra.Command, args []string) {
-	target := TargetName + "_opus"
+	target := getOpusConfigName(TargetName)
 
 	fmt.Println("Deploy:", ServiceName, "→", target)
 

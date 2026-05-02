@@ -12,8 +12,6 @@ import (
 )
 
 var (
-	RemoteHost string
-
 	SSHConfigPath    = filepath.Join(os.Getenv("HOME"), ".ssh", "config")
 	DeployScriptPath = "/usr/local/bin/opus-deploy"
 )
@@ -28,6 +26,7 @@ func initSetupCmd() *cobra.Command {
 
 	cmd.AddCommand(initSetupInitCmd())
 	cmd.AddCommand(initSetupClearCmd())
+	cmd.AddCommand(initSetupK3sCmd())
 
 	return cmd
 }
@@ -51,17 +50,11 @@ func initSetupInitCmd() *cobra.Command {
 }
 
 func runSetupInit(cmd *cobra.Command, args []string) {
-	target := TargetName + "_opus"
-	keyPath := filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519_"+target)
-
+	target := getOpusConfigName(TargetName)
 	fmt.Println("Setup:", target, "->", RemoteHost)
 
-	ensureKey(keyPath, target)
-	writeSSHConfig(target, RemoteHost, keyPath)
-	copySSHKey(target)
-
+	setupSSHConfig(target)
 	installDeployScript(target)
-	ensureSudoers(target)
 
 	fmt.Println("Setup complete ✔")
 }
@@ -82,7 +75,7 @@ func initSetupClearCmd() *cobra.Command {
 }
 
 func runSetupClear(cmd *cobra.Command, args []string) {
-	target := TargetName + "_opus"
+	target := getOpusConfigName(TargetName)
 	keyPath := filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519_"+target)
 
 	fmt.Println("Clearing setup for:", target)
@@ -96,6 +89,12 @@ func runSetupClear(cmd *cobra.Command, args []string) {
 }
 
 // ---------------- SSH ----------------
+func setupSSHConfig(configName string) {
+	keyPath := filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519_"+configName)
+	ensureKey(keyPath, configName)
+	writeSSHConfig(configName, RemoteHost, keyPath)
+	copySSHKey(configName)
+}
 
 func ensureKey(path string, target string) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -177,6 +176,8 @@ systemctl restart $NAME
 	)
 
 	mustRun("ssh", "-t", target, cmd)
+
+	ensureSudoers(target)
 }
 
 func ensureSudoers(target string) {

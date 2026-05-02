@@ -1,24 +1,56 @@
 # Opus 🛠️
 
-**Build, deploy, and monitor Go services with a single tool — no YAML, no containers, no complexity.**
+**Build, deploy, and manage Go services with a single tool — simple, fast, and extensible.**
 
-Opus is a unified management suite for homelabs that favors the host over the container. It handles the entire lifecycle of your Go applications using native Linux tools.
+Opus is designed for homelabs and small servers, focusing on direct deployments (systemd or k3s) without unnecessary complexity. It provides a clean developer experience while remaining flexible for future expansion.
 
 ---
 
-### Features
-* **Simple Deploy:** Ship binaries directly to `systemd` via SSH.
-* **Built-in Telemetry:** A lightweight worker tracks CPU, RAM, and HTTP requests.
-* **Live Logs:** Stream logs directly to your terminal or web dashboard.
-* **Dashboard:** A clean Web UI built with Go, Templ, and HTMX.
+## Example usage
 
-### Components
-* **CLI:** Your interface for building and deploying.
-* **Worker:** A silent agent for telemetry extraction.
-* **WebApp:** Visual dashboard for services and server health.
+### 1. Setup server access
 
-### Tech Stack
-* **Language:** Go
-* **Frontend:** Templ & HTMX
-* **Orchestration:** Systemd
-* **Communication:** SSH / SCP
+```bash
+opus setup init --target homelab --host user@192.168.1.10
+```
+### 2. Deploy a service (systemd)
+```bash
+opus deploy --name domus --host homelab_opus
+```
+### 3. Setup k3s + kubectl
+```bash
+opus setup k3s --target homelab
+```
+### 4. Use the cluster
+```bash
+opus use homelab
+kubectl get nodes
+``
+
+## Features
+- Simple Deploy: Ship Go binaries via SSH using systemd
+- K3s Support: Install and configure Kubernetes (k3s) easily
+- Context Switching: Seamless kubectl switching via opus use
+- Minimal Setup: No YAML required for basic usage
+
+## Concepts
+- Targets are isolated (homelab, server1, etc.)
+- Each environment has its own kubeconfig
+- No global kubeconfig mutation by default
+- Explicit over implicit
+
+## Limitations
+- No rollback or versioning
+- No secrets/config management
+- Assumes simple environments (single node or small setups)
+
+## Tech Stack
+- Language: Go
+- Orchestration: Systemd / K3s
+- Communication: SSH / SCP
+
+## WIP
+- Built-in telemetry (CPU, RAM, HTTP metrics)
+- Background worker for metrics collection
+- Live logs streaming
+- Web dashboard for services and server health
